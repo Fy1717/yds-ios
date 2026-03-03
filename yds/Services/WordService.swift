@@ -13,6 +13,7 @@ internal import Combine
 final class WordService: ObservableObject {
     static let totalDays = 60
     private static let currentDayKey = "yds_current_day"
+    private static let apiURL = "https://yds-api-yhmx.onrender.com/api/words"
     
     @Published var allWords: [Word] = []
     @Published var currentDay: Int
@@ -48,7 +49,38 @@ final class WordService: ObservableObject {
     func loadWords() {
         isLoading = true
         errorMessage = nil
-        
+        Task {
+            await loadWordsAsync()
+        }
+    }
+    
+    private func loadWordsAsync() async {
+        if let words = await fetchFromAPI() {
+            allWords = words
+            isLoading = false
+            SharedStorage.updateForWidget(currentDay: currentDay, todaysWordCount: todaysWords.count)
+            return
+        }
+        loadFromBundle()
+    }
+    
+    private func fetchFromAPI() async -> [Word]? {
+        guard let url = URL(string: Self.apiURL) else { return nil }
+        var config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 20
+        let session = URLSession(configuration: config)
+        do {
+            let (data, response) = try await session.data(from: url)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+            let words = try JSONDecoder().decode([Word].self, from: data)
+            return words.isEmpty ? nil : words
+        } catch {
+            return nil
+        }
+    }
+    
+    private func loadFromBundle() {
         guard let url = Bundle.main.url(forResource: "yds_words", withExtension: "json", subdirectory: "assets")
             ?? Bundle.main.url(forResource: "yds_words", withExtension: "json")
             ?? Bundle.main.url(forResource: "sample_words", withExtension: "json", subdirectory: "assets")
@@ -57,18 +89,15 @@ final class WordService: ObservableObject {
             isLoading = false
             return
         }
-        
         do {
             let data = try Data(contentsOf: url)
-            let decoder = JSONDecoder()
-            let words = try decoder.decode([Word].self, from: data)
+            let words = try JSONDecoder().decode([Word].self, from: data)
             allWords = words
-            isLoading = false
             SharedStorage.updateForWidget(currentDay: currentDay, todaysWordCount: todaysWords.count)
         } catch {
             errorMessage = "Kelimeler yüklenemedi: \(error.localizedDescription)"
-            isLoading = false
         }
+        isLoading = false
     }
     
     func advanceToNextDay() {

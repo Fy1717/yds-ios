@@ -51,7 +51,16 @@ Bu uygulama, **gün gün** yapılandırılmış kelime listesiyle 60 günde YDS'
 
 ## Kelime Verisi
 
-Kelimeler `yds/assets/yds_words.json` dosyasında tutulur. (Firebase entegrasyonu için format uyumludur.)
+### Veri Kaynağı
+
+Uygulama kelimeleri **önce API'den**, API başarısız olursa **statik JSON dosyasından** yükler:
+
+1. **API (öncelikli):** `GET https://yds-api-yhmx.onrender.com/api/words`
+   - Açılışta ve pull-to-refresh ile deneme
+   - 15 saniye timeout; hata veya timeout'ta statik dosyaya geçer
+
+2. **Statik dosya (yedek):** `yds/assets/yds_words.json` → `sample_words.json`
+   - API ulaşılamazsa veya yanıt hatalıysa kullanılır
 
 ### JSON Formatı (Firebase Uyumlu)
 
@@ -185,13 +194,13 @@ Kelime verilerini yükleyen ve yöneten servis sınıfı. `@MainActor` ve `Obser
 - `errorMessage: String?` — Hata mesajı (varsa)
 
 **Metodlar:**
-- `loadWords()` — Bundle'dan JSON dosyasını okur, decode eder
+- `loadWords()` — Önce API'den GET isteğiyle çeker; başarısızsa statik JSON'dan yükler
 - `shuffledWords()` — O günün kelimelerinin karıştırılmış listesi
 - `advanceToNextDay()` — Sonraki güne geç
 - `goToPreviousDay()` — Önceki güne dön
 - `setDay(_:)` — Belirli bir güne (1–60) atla
 
-**Dosya önceliği:** `yds_words.json` → `sample_words.json` (assets klasöründe)
+**Yükleme sırası:** API (`/api/words`) → `yds_words.json` → `sample_words.json`
 
 ---
 
