@@ -13,6 +13,8 @@ struct FillBlankView: View {
     @State private var userAnswer = ""
     @State private var showResult = false
     @State private var correctCount = 0
+    @State private var wrongWordIds: Set<Double> = []
+    @State private var showRetryWrong = false
     @FocusState private var isAnswerFocused: Bool
     
     private var wordsWithExamples: [Word] {
@@ -34,7 +36,10 @@ struct FillBlankView: View {
     }
     
     private func isAnswerCorrect() -> Bool {
-        userAnswer.trimmingCharacters(in: .whitespaces).lowercased() == currentWord?.english.lowercased()
+        guard let word = currentWord else { return false }
+        let answer = userAnswer.trimmingCharacters(in: .whitespaces).lowercased()
+        if answer == word.english.lowercased() { return true }
+        return word.synonymsList.contains { $0.lowercased() == answer }
     }
     
     var body: some View {
@@ -75,6 +80,9 @@ struct FillBlankView: View {
                     completionView
                 }
             }
+        }
+        .navigationDestination(isPresented: $showRetryWrong) {
+            FillBlankView(words: wordsWithExamples.filter { wrongWordIds.contains($0.id) })
         }
         .navigationTitle("Boşluk Doldur")
 #if !os(macOS)
@@ -161,19 +169,33 @@ struct FillBlankView: View {
                 .disabled(showResult)
                 .onSubmit {
                     if !showResult && !userAnswer.isEmpty {
+                        HapticManager.medium()
                         withAnimation {
                             showResult = true
                         }
-                        if isAnswerCorrect() { correctCount += 1 }
+                        if isAnswerCorrect() {
+                            correctCount += 1
+                            HapticManager.success()
+                        } else {
+                            HapticManager.error()
+                            if let wid = currentWord?.id { wrongWordIds.insert(wid) }
+                        }
                     }
                 }
             
             if !showResult {
                 Button {
+                    HapticManager.medium()
                     withAnimation {
                         showResult = true
                     }
-                    if isAnswerCorrect() { correctCount += 1 }
+                    if isAnswerCorrect() {
+                        correctCount += 1
+                        HapticManager.success()
+                    } else {
+                        HapticManager.error()
+                        if let wid = currentWord?.id { wrongWordIds.insert(wid) }
+                    }
                 } label: {
                     HStack(spacing: DesignSystem.Spacing.xs) {
                         Image(systemName: "checkmark.circle.fill")
@@ -218,6 +240,7 @@ struct FillBlankView: View {
     
     private var nextButton: some View {
         Button {
+            HapticManager.light()
             withAnimation {
                 if currentIndex < wordsWithExamples.count - 1 {
                     currentIndex += 1
@@ -243,7 +266,8 @@ struct FillBlankView: View {
     }
     
     private var completionView: some View {
-        VStack(spacing: DesignSystem.Spacing.lg) {
+        let day = words.first?.day ?? 1
+        return VStack(spacing: DesignSystem.Spacing.lg) {
             ZStack {
                 Circle()
                     .fill(DesignSystem.Colors.fillBlank.opacity(0.2))
@@ -261,10 +285,19 @@ struct FillBlankView: View {
                 .font(DesignSystem.Typography.title3)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
             
+            if !wrongWordIds.isEmpty {
+                Button("Yanlışları Tekrar Et (\(wrongWordIds.count))") {
+                    showRetryWrong = true
+                }
+                .buttonStyle(PrimaryButtonStyle(color: DesignSystem.Colors.fillBlank))
+                .frame(maxWidth: 200)
+            }
+            
             Button("Başa Dön") {
                 withAnimation {
                     currentIndex = 0
                     correctCount = 0
+                    wrongWordIds = []
                     userAnswer = ""
                     showResult = false
                     isAnswerFocused = true
@@ -272,9 +305,12 @@ struct FillBlankView: View {
             }
             .buttonStyle(PrimaryButtonStyle(color: DesignSystem.Colors.fillBlank))
             .frame(maxWidth: 200)
-            .padding(.top, DesignSystem.Spacing.md)
         }
         .padding(DesignSystem.Spacing.xl)
+        .onAppear {
+            StreakService.shared.recordCompletion(day: day)
+            StatsService.shared.recordFillBlank(correct: correctCount, total: wordsWithExamples.count)
+        }
     }
 }
 

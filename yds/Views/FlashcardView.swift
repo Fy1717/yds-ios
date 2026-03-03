@@ -10,6 +10,7 @@ import SwiftUI
 struct FlashcardView: View {
     let words: [Word]
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var favorites = FavoritesService.shared
     @State private var currentIndex = 0
     @State private var showTurkish = false
     @State private var direction: CardDirection = .englishToTurkish
@@ -57,11 +58,13 @@ struct FlashcardView: View {
             DragGesture(minimumDistance: 50)
                 .onEnded { value in
                     if value.translation.width < -80 && currentIndex < words.count - 1 {
+                        HapticManager.light()
                         withAnimation(.easeInOut(duration: 0.25)) {
                             currentIndex += 1
                             showTurkish = false
                         }
                     } else if value.translation.width > 80 && currentIndex > 0 {
+                        HapticManager.light()
                         withAnimation(.easeInOut(duration: 0.25)) {
                             currentIndex -= 1
                             showTurkish = false
@@ -87,6 +90,7 @@ struct FlashcardView: View {
         HStack(spacing: 0) {
             ForEach(Array(CardDirection.allCases.enumerated()), id: \.element) { index, d in
                 Button {
+                    HapticManager.selection()
                     withAnimation(.easeInOut(duration: 0.25)) {
                         direction = d
                         showTurkish = false
@@ -115,9 +119,10 @@ struct FlashcardView: View {
     
     private var cardContent: some View {
         let word = words[currentIndex]
+        let isFav = favorites.isFavorite(word.id)
         
         return VStack(spacing: DesignSystem.Spacing.lg) {
-            ZStack {
+            ZStack(alignment: .topTrailing) {
                 RoundedRectangle(cornerRadius: DesignSystem.Radius.xl)
                     .fill(DesignSystem.Colors.cardBackground)
                     .shadow(
@@ -131,6 +136,18 @@ struct FlashcardView: View {
                     )
                 
                 VStack(spacing: DesignSystem.Spacing.lg) {
+                    Button {
+                        favorites.toggle(word.id)
+                        HapticManager.selection()
+                    } label: {
+                        Image(systemName: isFav ? "star.fill" : "star")
+                            .font(.system(size: 20))
+                            .foregroundStyle(isFav ? .yellow : DesignSystem.Colors.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.trailing, DesignSystem.Spacing.sm)
+                    
                     if direction == .englishToTurkish {
                         Text(word.english)
                             .font(DesignSystem.Typography.title)
@@ -153,6 +170,7 @@ struct FlashcardView: View {
                     
                     if !showTurkish {
                         Button {
+                            HapticManager.light()
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 showTurkish = true
                             }
@@ -176,6 +194,7 @@ struct FlashcardView: View {
             }
             .frame(minHeight: 300)
             .onTapGesture {
+                HapticManager.light()
                 withAnimation(.easeInOut(duration: 0.3)) {
                     showTurkish.toggle()
                 }
@@ -228,6 +247,7 @@ struct FlashcardView: View {
     private var navigationControls: some View {
         HStack(spacing: DesignSystem.Spacing.xl) {
             Button {
+                HapticManager.light()
                 withAnimation(.easeInOut(duration: 0.25)) {
                     currentIndex = max(0, currentIndex - 1)
                     showTurkish = false
@@ -249,6 +269,7 @@ struct FlashcardView: View {
             Spacer()
             
             Button {
+                HapticManager.light()
                 withAnimation(.easeInOut(duration: 0.25)) {
                     if currentIndex < words.count - 1 {
                         currentIndex += 1

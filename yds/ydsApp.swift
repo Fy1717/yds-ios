@@ -9,6 +9,13 @@ import SwiftUI
 
 @main
 struct ydsApp: App {
+    init() {
+        if AppSettings.shared.notificationsEnabled {
+            NotificationManager.shared.requestPermission()
+            NotificationManager.shared.scheduleDailyReminder()
+        }
+    }
+    
     var body: some Scene {
         WindowGroup {
             ContentView()

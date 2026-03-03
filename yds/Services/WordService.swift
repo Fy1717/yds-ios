@@ -64,6 +64,7 @@ final class WordService: ObservableObject {
             let words = try decoder.decode([Word].self, from: data)
             allWords = words
             isLoading = false
+            SharedStorage.updateForWidget(currentDay: currentDay, todaysWordCount: todaysWords.count)
         } catch {
             errorMessage = "Kelimeler yüklenemedi: \(error.localizedDescription)"
             isLoading = false
@@ -74,18 +75,21 @@ final class WordService: ObservableObject {
         guard currentDay < Self.totalDays else { return }
         currentDay += 1
         UserDefaults.standard.set(currentDay, forKey: Self.currentDayKey)
+        SharedStorage.updateForWidget(currentDay: currentDay, todaysWordCount: todaysWords.count)
     }
     
     func goToPreviousDay() {
         guard currentDay > 1 else { return }
         currentDay -= 1
         UserDefaults.standard.set(currentDay, forKey: Self.currentDayKey)
+        SharedStorage.updateForWidget(currentDay: currentDay, todaysWordCount: todaysWords.count)
     }
     
     func setDay(_ day: Int) {
         let clamped = min(max(day, 1), Self.totalDays)
         currentDay = clamped
         UserDefaults.standard.set(currentDay, forKey: Self.currentDayKey)
+        SharedStorage.updateForWidget(currentDay: currentDay, todaysWordCount: todaysWords.count)
     }
     
     /// Genel ilerleme (0.0 - 1.0)

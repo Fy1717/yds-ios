@@ -8,9 +8,17 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var hasCompletedOnboarding = AppSettings.shared.hasSeenOnboarding
+    
     var body: some View {
-        HomeView()
-            .preferredColorScheme(.light)
+        Group {
+            if hasCompletedOnboarding {
+                HomeView()
+            } else {
+                OnboardingView(isCompleted: $hasCompletedOnboarding)
+            }
+        }
+        .preferredColorScheme(.light)
     }
 }
 

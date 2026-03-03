@@ -9,12 +9,16 @@ import SwiftUI
 
 struct StudyView: View {
     let words: [Word]
+    @StateObject private var favorites = FavoritesService.shared
     @State private var searchText = ""
+    @State private var showOnlyFavorites = false
     @State private var expandedIds: Set<Double> = []
     
     private var filteredWords: [Word] {
-        if searchText.isEmpty { return words }
-        return words.filter {
+        var result = words
+        if showOnlyFavorites { result = favorites.filterFavorites(from: result) }
+        if searchText.isEmpty { return result }
+        return result.filter {
             $0.english.localizedCaseInsensitiveContains(searchText) ||
             $0.turkish.localizedCaseInsensitiveContains(searchText) ||
             ($0.synonyms?.localizedCaseInsensitiveContains(searchText) ?? false)
@@ -35,11 +39,19 @@ struct StudyView: View {
                     )
                 } else {
                     List {
+                        if !favorites.favoriteIds.isEmpty {
+                            Section {
+                                Toggle("Sadece favoriler", isOn: $showOnlyFavorites)
+                                    .tint(DesignSystem.Colors.study)
+                            }
+                        }
                         ForEach(filteredWords) { word in
                             StudyWordRow(
                                 word: word,
                                 isExpanded: expandedIds.contains(word.id),
-                                onTap: { toggleExpand(word.id) }
+                                isFavorite: favorites.isFavorite(word.id),
+                                onTap: { toggleExpand(word.id) },
+                                onFavoriteToggle: { favorites.toggle(word.id) }
                             )
                             .listRowInsets(EdgeInsets(top: 4, leading: DesignSystem.Spacing.md, bottom: 4, trailing: DesignSystem.Spacing.md))
                             .listRowSeparatorTint(DesignSystem.Colors.study.opacity(0.2))
@@ -75,7 +87,9 @@ struct StudyView: View {
 struct StudyWordRow: View {
     let word: Word
     let isExpanded: Bool
+    let isFavorite: Bool
     let onTap: () -> Void
+    let onFavoriteToggle: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
@@ -100,6 +114,13 @@ struct StudyWordRow: View {
                     }
                     
                     Spacer()
+                    
+                    Button(action: onFavoriteToggle) {
+                        Image(systemName: isFavorite ? "star.fill" : "star")
+                            .font(.system(size: 18))
+                            .foregroundStyle(isFavorite ? .yellow : DesignSystem.Colors.textTertiary)
+                    }
+                    .buttonStyle(.plain)
                     
                     Image(systemName: isExpanded ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
                         .font(.system(size: 20))

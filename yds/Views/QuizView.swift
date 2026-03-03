@@ -17,6 +17,8 @@ struct QuizView: View {
     @State private var selectedAnswer: String?
     @State private var showResult = false
     @State private var correctCount = 0
+    @State private var wrongWordIds: Set<Double> = []
+    @State private var showRetryWrong = false
     @State private var questionDirection: QuestionDirection = .englishToTurkish
     @State private var currentOptions: [String] = []
     
@@ -68,6 +70,9 @@ struct QuizView: View {
                 }
             }
         }
+        .navigationDestination(isPresented: $showRetryWrong) {
+            QuizView(words: words.filter { wrongWordIds.contains($0.id) })
+        }
         .navigationTitle("Quiz")
 #if !os(macOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -113,6 +118,7 @@ struct QuizView: View {
     }
     
     private func goNext() {
+        HapticManager.light()
         withAnimation {
             currentIndex += 1
             selectedAnswer = nil
@@ -121,6 +127,7 @@ struct QuizView: View {
     }
     
     private func goPrevious() {
+        HapticManager.light()
         withAnimation {
             currentIndex -= 1
             selectedAnswer = nil
@@ -201,12 +208,17 @@ struct QuizView: View {
             ForEach(currentOptions, id: \.self) { option in
                 Button {
                     guard !showResult else { return }
+                    HapticManager.medium()
                     selectedAnswer = option
                     withAnimation(.easeInOut(duration: 0.25)) {
                         showResult = true
                     }
                     if option == correctAnswer {
                         correctCount += 1
+                        HapticManager.success()
+                    } else {
+                        HapticManager.error()
+                        if let wid = currentWord?.id { wrongWordIds.insert(wid) }
                     }
                 } label: {
                     HStack(spacing: DesignSystem.Spacing.md) {
@@ -311,7 +323,8 @@ struct QuizView: View {
     }
     
     private var completionView: some View {
-        VStack(spacing: DesignSystem.Spacing.lg) {
+        let day = words.first?.day ?? 1
+        return VStack(spacing: DesignSystem.Spacing.lg) {
             ZStack {
                 Circle()
                     .fill(DesignSystem.Colors.quiz.opacity(0.2))
@@ -329,19 +342,31 @@ struct QuizView: View {
                 .font(DesignSystem.Typography.title3)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
             
+            if !wrongWordIds.isEmpty {
+                Button("Yanlışları Tekrar Et (\(wrongWordIds.count))") {
+                    showRetryWrong = true
+                }
+                .buttonStyle(PrimaryButtonStyle(color: DesignSystem.Colors.quiz))
+                .frame(maxWidth: 200)
+            }
+            
             Button("Başa Dön") {
                 withAnimation {
                     currentIndex = 0
                     correctCount = 0
+                    wrongWordIds = []
                     selectedAnswer = nil
                     showResult = false
                 }
             }
             .buttonStyle(PrimaryButtonStyle(color: DesignSystem.Colors.quiz))
             .frame(maxWidth: 200)
-            .padding(.top, DesignSystem.Spacing.md)
         }
         .padding(DesignSystem.Spacing.xl)
+        .onAppear {
+            StreakService.shared.recordCompletion(day: day)
+            StatsService.shared.recordQuiz(correct: correctCount, total: words.count)
+        }
     }
 }
 

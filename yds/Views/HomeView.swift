@@ -9,6 +9,10 @@ import SwiftUI
 
 struct HomeView: View {
     @StateObject private var wordService = WordService()
+    @StateObject private var streakService = StreakService.shared
+    @StateObject private var favoritesService = FavoritesService.shared
+    @State private var showDayPicker = false
+    @State private var showAdvanceConfirm = false
     
     var body: some View {
         NavigationStack {
@@ -31,19 +35,89 @@ struct HomeView: View {
                     }
                     .padding(DesignSystem.Spacing.md)
                 }
+                .refreshable {
+                    wordService.loadWords()
+                }
             }
             .navigationTitle("60 Günde YDS")
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(DesignSystem.Colors.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    HStack(spacing: DesignSystem.Spacing.sm) {
+                        NavigationLink {
+                            StatsView()
+                        } label: {
+                            Image(systemName: "chart.bar.fill")
+                                .foregroundStyle(DesignSystem.Colors.primary)
+                        }
+                        NavigationLink {
+                            SettingsView()
+                        } label: {
+                            Image(systemName: "gearshape.fill")
+                                .foregroundStyle(DesignSystem.Colors.primary)
+                        }
+                    }
+                }
+            }
             #endif
             .tint(DesignSystem.Colors.primary)
         }
     }
     
+    private var dayPickerSheet: some View {
+        NavigationStack {
+            List(1...WordService.totalDays, id: \.self) { day in
+                Button {
+                    wordService.setDay(day)
+                    showDayPicker = false
+                } label: {
+                    HStack {
+                        Text("Gün \(day)")
+                            .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        if day == wordService.currentDay {
+                            Spacer()
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(DesignSystem.Colors.primary)
+                        }
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(DesignSystem.Colors.background)
+            .navigationTitle("Gün Seç")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Kapat") {
+                        showDayPicker = false
+                    }
+                    .foregroundStyle(DesignSystem.Colors.primary)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+    
     private var headerSection: some View {
         VStack(spacing: DesignSystem.Spacing.sm) {
+            if streakService.streak > 0 {
+                HStack(spacing: DesignSystem.Spacing.xs) {
+                    Image(systemName: "flame.fill")
+                        .foregroundStyle(.orange)
+                    Text("\(streakService.streak) gün streak")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                }
+                .padding(.horizontal, DesignSystem.Spacing.md)
+                .padding(.vertical, DesignSystem.Spacing.xs)
+                .background(DesignSystem.Colors.cardBackground)
+                .clipShape(Capsule())
+            }
+            
             ZStack {
                 Circle()
                     .fill(
@@ -80,14 +154,25 @@ struct HomeView: View {
     private var dailyProgressSection: some View {
         VStack(spacing: DesignSystem.Spacing.md) {
             HStack {
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                    Text("Gün \(wordService.currentDay) / \(WordService.totalDays)")
-                        .font(DesignSystem.Typography.headline)
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    Text("\(wordService.todaysWords.count) kelime bugün")
-                        .font(DesignSystem.Typography.subheadline)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                Button {
+                    showDayPicker = true
+                } label: {
+                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                        HStack(spacing: DesignSystem.Spacing.xs) {
+                            Text("Gün \(wordService.currentDay) / \(WordService.totalDays)")
+                                .font(DesignSystem.Typography.headline)
+                                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                            Image(systemName: "chevron.down.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(DesignSystem.Colors.primary.opacity(0.6))
+                        }
+                        Text("\(wordService.todaysWords.count) kelime bugün")
+                            .font(DesignSystem.Typography.subheadline)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    }
                 }
+                .buttonStyle(.plain)
+                
                 Spacer()
                 
                 HStack(spacing: DesignSystem.Spacing.sm) {
@@ -102,7 +187,7 @@ struct HomeView: View {
                     }
                     if wordService.currentDay < WordService.totalDays {
                         Button {
-                            wordService.advanceToNextDay()
+                            showAdvanceConfirm = true
                         } label: {
                             Image(systemName: "chevron.right.circle.fill")
                                 .font(.title2)
@@ -110,6 +195,17 @@ struct HomeView: View {
                         }
                     }
                 }
+            }
+            .confirmationDialog("Sonraki Güne Geç", isPresented: $showAdvanceConfirm) {
+                Button("Gün \(wordService.currentDay + 1)'e Geç") {
+                    wordService.advanceToNextDay()
+                }
+                Button("İptal", role: .cancel) { }
+            } message: {
+                Text("Bu günün kelimelerini atlayıp sonraki güne geçmek istediğinize emin misiniz?")
+            }
+            .sheet(isPresented: $showDayPicker) {
+                dayPickerSheet
             }
             .padding(DesignSystem.Spacing.md)
             .background(DesignSystem.Colors.cardBackground)
@@ -191,6 +287,20 @@ struct HomeView: View {
                 color: DesignSystem.Colors.fillBlank
             ) {
                 FillBlankView(words: wordService.shuffledWords())
+            }
+            
+            if !wordService.wordsUpToCurrentDay.isEmpty {
+                let favWords = favoritesService.filterFavorites(from: wordService.wordsUpToCurrentDay)
+                if !favWords.isEmpty {
+                    LearningModeCard(
+                        title: "Favoriler",
+                        subtitle: "\(favWords.count) favori kelime ile çalış",
+                        icon: "star.fill",
+                        color: .yellow
+                    ) {
+                        FlashcardView(words: favWords.shuffled())
+                    }
+                }
             }
         }
     }
