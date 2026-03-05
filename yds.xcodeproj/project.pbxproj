@@ -19,6 +19,8 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		5DA6ECDD2F4512D000A1C345 /* yds */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = yds;
 			sourceTree = "<group>";
 		};
